@@ -1,37 +1,86 @@
 ---
 title: "Lighting condition Analysis"
-output: 
-  bookdown::pdf_document2:
-    fig_caption: yes
-    number_sections: no
-    toc: no
-editor_options: 
-  chunk_output_type: console
-header-includes: |
-  \usepackage{lipsum} \usepackage{float} \floatplacement{figure}{H}
+author: "Coley Tosto"
+date: "`r Sys.Date()`"
+output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r knitsetup, include=FALSE}
+knitr::opts_knit$set(root.dir='../',fig_path="../figs/")
 ```
 
-## R Markdown
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+```{r chunksetup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,out.extra='',fig.pos="H",
+                      fig.path = "../figs/",
+                      dpi = 300,dev='png')
 ```
 
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r library, message=FALSE, warning=FALSE}
+library(ggplot2)
+library(car)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r read-data}
+lighting_data <- read.csv("processed_data/lightingcondition.csv")
 
+##ensuring our factors are factors
+lighting_data$measurement <- factor(lighting_data$measurement)
+lighting_data$lighting <- factor(lighting_data$lighting)
+```
+
+While working through the analysis of iridescence across different geographic locations, it was noted that due to the nature of the original study (ADD CITATION), photos of the pipefish were taken under various lighting conditions (including cloudy days, sunny days, etc.). To increase confidence in the resulting measurements, this study was developed to assess the reliability and repeatability of the IDIA.
+
+For this study 24 sexually mature female pipefish were originally captured and photographed under 3 lighting conditions. Some females were removed due to too dark of a background colouration to confidently determine iridescence resulting in a total of `r length(unique(lighting_data$fish))` used in the analysis. Each individual was measured for mean band iridescence and overall iridescence (denoted as hard and easy respectively) resulting in a total of `r nrow(lighting_data[which(lighting_data$measurement == 'hard'),])` and `r` measurements for each method.
+
+```{r two-way-anova}
+leveneTest(meaniri~measurement,lighting_data)
+leveneTest(meaniri~lighting,lighting_data)
+
+model_twoway <-Anova(lm(meaniri~lighting*measurement,lighting_data),type="III")
+model_twoway
+interaction.plot(lighting_data$lighting,lighting_data$measurement,(lighting_data$meaniri))
+```
+
+Type III was used to account for the unequal sample sizes across lighting condition. Because of no significant interaction term with this model, and the large differences between the ways mean iri and total iri are measured, separate one-way ANOVAs will be used for the analysis
+
+```{r subset-data}
+light_meaniri <- lighting_data[which(lighting_data$measurement == 'hard'),]
+light_totiri <- lighting_data[which(lighting_data$measurement == 'easy'),]
+```
+
+```{r meaniri-assumptions, warning=FALSE}
+leveneTest(meaniri~lighting, light_meaniri)
+
+model_oneway_meaniri <- aov(meaniri~lighting, light_meaniri, type="III")
+meaniri_resid <- resid(model_oneway_meaniri)
+shapiro.test(meaniri_resid)
+
+boxplot(meaniri~lighting, light_meaniri, xlab = "Lighting Condition (Lumens)", ylab = expression(paste("Band Iridescence (mm"^2*")")))
+par(mfrow=c(2,2))
+plot(model_oneway_meaniri)
+```
+All assumptions are met, can proceed with one-way ANOVA. However, due to unequal sample sizes for the different lighting conditions (9 lumens = `r nrow(light_meaniri[which(light_meaniri$lighting == "9 Lumens"),])`, 13 lumens = `r nrow(light_meaniri[which(light_meaniri$lighting == "13 Lumens"),])`, 21 lumens = `r nrow(light_meaniri[which(light_meaniri$lighting == "21 Lumens"),])`) a type III ANOVA model will be used.
+
+```{r totiri-assumptions, warning=FALSE}
+leveneTest(totaliri~lighting, light_totiri)
+
+model_oneway_totiri <- aov(totaliri~lighting, light_totiri)
+totiri_resid <- resid(model_oneway_totiri)
+shapiro.test(totiri_resid)
+
+par(mfrow=c(1,1))
+boxplot(totaliri~lighting, light_totiri, xlab = "Lighting Condition (Lumens)", ylab = expression(paste("Overall Iridescence (mm"^2*")")))
+par(mfrow=c(2,2))
+plot(model_oneway_totiri)
+```
+All assumptions are met, model can be run
+
+```{r one-way-anovas}
+model_oneway_meaniri <- aov(meaniri~lighting, light_meaniri)
+summary(model_oneway_meaniri)
+
+model_oneway_totiri <- aov(totaliri~lighting, light_totiri)
+summary(model_oneway_totiri)
+```
+Both models resulted in non-significant results, meaning the lighting condition that a photo was taken in does not alter the resulting measurement of iridescence. This does not differ no matter if you are looking at band iridescence or overall iridescence.
