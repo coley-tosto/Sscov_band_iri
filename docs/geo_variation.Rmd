@@ -23,6 +23,23 @@ library(kableExtra)
 library(tidyverse)
 library(multcompView)
 library(MASS)
+library(ggplot2)
+library(cowplot)
+```
+
+```{r functions}
+##Function used to add Tukey Letters to Boxplot Figures
+generate_label_df <- function(TUKEY, variable){
+  
+  #Extract labels and factor levels from Tukey post-hoc test
+  Tukey.levels <- TUKEY[[variable]][, 4]
+  Tukey.labels <- data.frame(multcompLetters(Tukey.levels)['Letters'])
+  
+  #Putting the labels in the same order as in the boxplot :
+  Tukey.labels$treatment=rownames(Tukey.labels)
+  Tukey.labels=Tukey.labels[order(Tukey.labels$treatment) , ]
+  return(Tukey.labels)
+}
 ```
 
 ```{r read-data}
@@ -32,6 +49,9 @@ geo_data$Location <- as.factor(geo_data$Location)
 ##The subsetted data created as per the next section
 geo_subset <- read.csv("processed_data/geovar.csv")
 geo_subset$Location <- as.factor(geo_subset$Location)
+
+##This dataset is used for the band area vs iridescence analysis
+area_iri <- read.csv("processed_data/ehs-LOCATION.csv")
 ```
 
 ## Subsetting the dataset
@@ -97,7 +117,7 @@ depth_hist
 ```{r test-assumptions-depth}
 leveneTest(depth~Location, geo_subset)
 
-depthaov<-aov(depth~Location, geo_subset)
+depthaov<-aov(geo_subset$depth~geo_subset$Location)
 depthresid<-resid(depthaov)
 shapiro.test(depthresid)
 
@@ -112,8 +132,8 @@ All assumptions met, can proceed with one-way ANOVA.
 summary(depthaov)
 
 #Post-hoc Analysis
-TukeyHSD(depthaov)
-
+tukey_depth <- TukeyHSD(x=depthaov, 'geo_subset$Location', conf.level = 0.95)
+tukey_depth
 ```
 Significant ANOVA results. From the post-hoc analysis we can see significant differences between the depths of females from the Florida and Texas populations and between the two Texas populations.
 ```{r posthoc-letters-depth, echo=F}
@@ -125,7 +145,29 @@ boxplot(depth~Location,data=geo_subset,ylab="Depth (mm)",xlab="Location",main=""
 
 Because of the difference in depths across the locations for all of the subsequent analyses iridescent measurements will be adjusted for by depth (iridescence/depth) resulting in Depth-adjust iridescence measurements.
 
-#### Creating Figure
+```{r fig-depth, echo=F}
+#Generate labels using function
+labels_depth <- generate_label_df(tukey_depth, "geo_subset$Location")
+
+#Rename columns for merging
+names(labels_depth) <- c('Letters', 'Location')
+
+#Obtain letter position for y axis using means
+yvalue_depth <- aggregate(depth~Location, data=geo_subset, mean)
+
+#Merge dataframes
+final_depth <- merge(labels_depth, yvalue_depth)
+
+depth <- ggplot(geo_subset, aes(x = Location, y = depth)) +
+       geom_boxplot(fill = 'grey23', alpha = 0.3) +
+       xlab("Location") +
+       ylab("Depth (mm)") +
+       geom_text(data = final_depth, aes(x = Location, y = depth, label = Letters),
+                 vjust = -6.5, hjust = 0.4) +
+       theme_minimal() +
+       theme(text = element_text(size = 12, family = 'sans', color = "black"))
+
+```
 
 ### Number of female bands across Location {.tabset}
 
@@ -156,7 +198,7 @@ num_band_hist
 ```{r test-assumptions-numbands}
 leveneTest(band_num~Location, geo_subset)
 
-band_num_aov<-aov(band_num~Location, geo_subset)
+band_num_aov<-aov(geo_subset$band_num~geo_subset$Location)
 band_numresid<-resid(band_num_aov)
 shapiro.test(band_numresid)
 
@@ -170,7 +212,8 @@ plot(band_num_aov)
 summary(band_num_aov)
 
 #Post-hoc Analysis
-TukeyHSD(band_num_aov)
+tukey_bandnum <- TukeyHSD(x=band_num_aov, 'geo_subset$Location', conf.level = 0.95)
+tukey_bandnum
 
 ```
 Significant ANOVA results. From the post-hoc analysis we can see significant differences between the number of bands that females from the Florida population have versus females from the Texas populations.
@@ -182,6 +225,43 @@ par(mfrow=c(1,1))
 boxplot(band_num~Location,data=geo_subset,ylab="Number of Bands",xlab="Location",main="")
 ```
 
+#### Creating Figure
+```{r fig-numbands, echo=F}
+#Generate labels using function
+labels_numbands <- generate_label_df(tukey_bandnum, "geo_subset$Location")
+
+#Rename columns for merging
+names(labels_numbands) <- c('Letters', 'Location')
+
+#Obtain letter position for y axis using means
+yvalue_numbands <- aggregate(band_num~Location, data=geo_subset, mean)
+
+#Merge dataframes
+final_numbands <- merge(labels_numbands, yvalue_numbands)
+
+numbands <- ggplot(geo_subset, aes(x = Location, y = band_num)) +
+       geom_boxplot(fill = 'grey23', alpha = 0.3) +
+       xlab("Location") +
+       ylab("Number of Iridescent Bands") +
+       geom_text(data = final_numbands, aes(x = Location, y = band_num, label = Letters),
+                 vjust = -8.5, hjust = 0.4) +
+       theme_minimal() +
+       theme(text = element_text(size = 12, family = 'sans', color = "black"))
+
+```
+
+```{r fig-combined-S2, echo=F}
+top_rowFS2 <- plot_grid(depth, numbands,
+                     ncol = 2,
+                     labels = c('A', 'B'),
+                     label_fontfamily = 'sans',
+                     label_fontface = 'bold',
+                     label_size = 18,
+                     align = 'h',
+                     rel_widths = c(1.10, 1.10))
+
+plot_grid(top_rowFS2)
+```
 
 ### Depth-adjusted Mean Band Iridescence across Location {.tabset}
 
@@ -236,6 +316,14 @@ par(mfrow=c(1,1))
 boxplot(DAI_hard~Location, data=geo_subset, ylab="Depth Adjusted Mean Band Iridescence", xlab="Location", main="")
 ```
 
+```{r fig-meaniri, echo=F}
+meaniri <- ggplot(geo_subset, aes(x = Location, y = DAI_hard)) +
+       geom_boxplot(fill = 'grey23', alpha = 0.3) +
+       xlab("Location") +
+       ylab(bquote("Mean Band Iridescence (mm" ^ "  2"*")")) +
+       theme_minimal() +
+       theme(text = element_text(size = 12, family = 'sans', color = "black"))
+```
 
 ### Depth-adjusted Overall Iridescence across Location {.tabset}
 
@@ -266,7 +354,7 @@ overalliri_hist
 ```{r test-assumptions-overalliri}
 leveneTest(DAIT_easy~Location, geo_subset)
 
-overalliri <- aov(DAIT_easy~Location, geo_subset)
+overalliri <- aov(geo_subset$DAIT_easy~geo_subset$Location)
 overalliriresid <- resid(overalliri)
 shapiro.test(overalliriresid)
 
@@ -280,7 +368,8 @@ All assumptions are met, can proceed with a one-way ANOVA
 summary(overalliri)
 
 ##Post-hoc analysis
-TukeyHSD(overalliri)
+tukey_overalliri <- TukeyHSD(x=overalliri, 'geo_subset$Location', conf.level = 0.95)
+tukey_overalliri
 ```
 Significant results from ANOVA. From the post-hoc analysis we can see signifcant differences between FL fort de soto population and the other three.
 
@@ -291,6 +380,32 @@ par(mfrow=c(1,1))
 boxplot(DAIT_easy~Location,
         data=geo_subset,
         ylab="Overall Iridescence", xlab="Location", main="")
+```
+
+#### Creating Figure
+```{r fig-overalliri, echo=F}
+#Generate labels using function
+labels_overalliri <- generate_label_df(tukey_overalliri, "geo_subset$Location")
+
+#Rename columns for merging
+names(labels_overalliri) <- c('Letters', 'Location')
+
+#Obtain letter position for y axis using means
+yvalue_overalliri <- aggregate(DAIT_easy~Location, data=geo_subset, mean)
+
+#Merge dataframes
+final_overalliri <- merge(labels_overalliri, yvalue_overalliri)
+
+overalliri_plot <- ggplot(geo_subset, aes(x = Location, y = DAIT_easy)) +
+       geom_boxplot(fill = 'grey23', alpha = 0.3) +
+       xlab("Location") +
+       ylab(bquote("Overall Iridescence (mm" ^ "  2"*")")) +
+       geom_text(data = final_overalliri, 
+                 aes(x = Location, y = DAIT_easy, label = Letters),
+                 vjust = -8.5, hjust = 0.4) +
+       theme_minimal() +
+       theme(text = element_text(size = 12, family = 'sans', color = "black"))
+
 ```
 
 ### Torso Iridescence across Location {.tabset}
@@ -346,4 +461,113 @@ par(mfrow=c(1,1))
 boxplot(body_iri~Location, data=geo_subset, ylab="Torso Iridescence", xlab="Location", main="")
 ```
 
+### Creating the Figure
+```{r fig-torsoiri, echo=F}
+torsoiri <- ggplot(geo_subset, aes(x = Location, y = body_iri)) +
+       geom_boxplot(fill = 'grey23', alpha = 0.3) +
+       xlab("Location") +
+       ylab(bquote("Torso Iridescence (mm" ^ "  2"*")")) +
+       theme_minimal() +
+       theme(text = element_text(size = 12, family = 'sans', color = "black"))
+
+```
+
+```{r fig-combined-F4, echo=F, fig.height=10}
+top_rowF4 <- plot_grid(meaniri,
+                     ncol = 2,
+                     labels = c('A'),
+                     label_fontfamily = 'sans',
+                     label_fontface = 'bold',
+                     label_size = 18,
+                     rel_widths = c(1.10))
+middle_rowF4 <- plot_grid(overalliri_plot,
+                          ncol = 2,
+                          labels = 'B',
+                          label_fontfamily = 'sans',
+                          label_fontface = 'bold',
+                          label_size = 18,
+                          rel_widths = 1.10)
+bottom_rowF4 <- plot_grid(torsoiri,
+                          ncol=2,
+                          labels = 'C',
+                          label_fontfamily = 'sans',
+                          label_fontface = 'bold',
+                          label_size = 18,
+                          rel_widths = c(1.10))
+
+plot_grid(top_rowF4, middle_rowF4, bottom_rowF4,
+          ncol = 1,
+          rel_heights = c(1.10, 1.10, 1.10))
+
+
+```
+
 ### Investigating the Relationship between Band Area and Band Iridescence
+This analysis was done for three of the four locations used above as we pulled band area measurements from (CITATION) and a Port Aransas, TX population was not used in that study.
+
+```{r subset-data-ehs}
+FLABehs <- subset(area_iri, Location=="FLAB")
+FLFDehs <- subset(area_iri, Location=="FLFD")
+TXSPehs <- subset(area_iri, Location=="TXSP")
+```
+
+#### Investigating correlations between area and iridescence
+```{r cor-test}
+##Looking at the correlation in the whole dataset
+cor.test(area_iri$mean_sarah, area_iri$mean_hard) ##0.3685
+
+##Looking at correlations within each Location
+cor.test(FLABehs$mean_sarah, FLABehs$mean_hard) ##0.2455675
+cor.test(FLFDehs$mean_sarah, FLFDehs$mean_hard) ##0.400215
+cor.test(TXSPehs$mean_sarah, TXSPehs$mean_hard) ##0.4177789
+
+```
+
+Overall no strong correlations seen between band area and band iridescence, with the lowest correlation in the FL Anne's Beach population. This would probably be expected as those females possessed the most iridescence on the torso but not specifically located to the bands.
+
+#### Creating Figure
+```{r fig-F5, echo=F}
+##Creating regression to plot best fit line
+FLAB.reg<-lm(mean_hard~mean_sarah,data=FLABehs)
+FLFD.reg<-lm(mean_hard~mean_sarah,data=FLFDehs)
+TXSP.reg<-lm(mean_hard~mean_sarah,data=TXSPehs)
+
+##Creating an empty plot
+par(family="sans")
+plot(mean_hard ~ mean_sarah,
+     data=area_iri,
+     type='n',
+     xlab=expression(paste("Band Area (mm"^2*")")),
+     ylab=""
+)
+
+##Adding y-axis label
+title(ylab=expression(paste("Band Iridescence (mm"^2*")")), mgp=c(2.5,1,0))
+
+##Adding points to empty plot
+points(FLABehs$mean_sarah,FLABehs$mean_hard,pch=21,cex=1.5,col="black",bg="gray28")
+points(FLFDehs$mean_sarah,FLFDehs$mean_hard, pch=22,cex=1.5,col="black",bg="gray59")
+points(TXSPehs$mean_sarah,TXSPehs$mean_hard, pch=24,cex=1.5, col="black",bg="gray89")
+
+##Adding best fir lines from regression models
+abline(FLAB.reg,lty=3,col="gray28",lwd=3)
+abline(FLFD.reg,lty=2,col="gray59",lwd=3)
+abline(TXSP.reg,lty=1,col="gray89",lwd=3)
+
+##Adding the Legend
+legend("topleft", c("Florida Anne's Beach","Florida Fort De Soto",
+                    "Texas South Padre"), 
+       lty=c(3,2,1), 
+       col=c("gray28","gray59","gray89"), 
+       bty='o',
+       lwd=3)
+
+legend('topright', c("","",""), 
+       pch=c(21,22,24),
+       pt.bg = c("gray28","gray59","gray89"),
+       pt.lwd = 1,
+       col=c("black"), bty='n',
+       text.width = 1.44,
+       cex=1.0
+       )
+```
