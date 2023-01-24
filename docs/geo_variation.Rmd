@@ -1,0 +1,349 @@
+---
+title: "Geographic Variarion of Iridescence"
+author: "Coley Tosto"
+output: html_document
+date: "`r Sys.Date()`"
+---
+
+```{r knitsetup, include=FALSE}
+knitr::opts_knit$set(root.dir='../',fig_path="../figs/")
+```
+
+
+```{r chunksetup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,out.extra='',fig.pos="H",
+                      fig.path = "../figs/",
+                      dpi = 300,dev='png')
+```
+
+```{r library, message=FALSE, warning=FALSE}
+library(car)
+library(knitr)
+library(kableExtra)
+library(tidyverse)
+library(multcompView)
+library(MASS)
+```
+
+```{r read-data}
+geo_data <- read.csv("processed_data/geo.csv")
+geo_data$Location <- as.factor(geo_data$Location)
+
+##The subsetted data created as per the next section
+geo_subset <- read.csv("processed_data/geovar.csv")
+geo_subset$Location <- as.factor(geo_subset$Location)
+```
+
+## Subsetting the dataset
+In order to run a one-way ANOVA to see if iridescence is different across the different geographic populations, we needed an equal sample size for each pop. The original dataset contained `r nrow(geo_data[which(geo_data$Location == "FLAB"),])`, `r  nrow(geo_data[which(geo_data$Location == "FLFD"),])`, `r  nrow(geo_data[which(geo_data$Location == "TXSP"),])`, and `r  nrow(geo_data[which(geo_data$Location == "TXPA"),])` female pipefish from the Florida Anne's Beach, Florida Fort De Soto, Texas South Padre, and Texas Port Aransas population respectively. The smallest sample size (TX South Padre), was then chosen as the number randomly sampled from the other populations.
+
+```{r subset-pops, eval=FALSE}
+##Subsetting the individual populations
+FLAB<-subset(geo_data,Location=="FLAB")
+FLFD<-subset(geo_data,Location=="FLFD")
+TXSP<-subset(geo_data,Location=="TXSP")
+TXPA<-subset(geo_data,Location=="TXPA")
+
+##Randomly selecting 17 from each population
+flabw<-FLAB[sample(1:nrow(FLAB),17,replace=FALSE),]
+flfdw<-FLFD[sample(1:nrow(FLFD),17,replace=FALSE),]
+txspw<-TXSP[sample(1:nrow(TXSP),17,replace=FALSE),]
+txpaw<-TXPA[sample(1:nrow(TXPA),17,replace=FALSE),]
+set.seed(123) ##Allows for reproducability if re-run in the same session
+
+##Combining the new subsets in a new dataset
+geovar<-rbind(flabw,flfdw,txspw,txpaw)
+
+##Writing out the dataset to ensure it is the same if further analysis is needed
+write.csv(geovar,"geovar.csv")
+```
+
+## Analysis
+
+```{r, echo=FALSE}
+geo_subset %>% 
+  group_by(Location) %>% 
+  summarise(across(c("depth", "band_num", "mean_hard", "total_easy"), ~ mean(.x, na.rm = TRUE))) %>%
+  kable(caption = "Summarized Data", format = "html") %>% 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, position = "left") %>%
+  footnote(general = "Summarized here are the means across location for each of the variables")
+```
+### Depth across Location {.tabset}
+
+#### Summary table
+```{r table_depth, echo=FALSE}
+geo_subset %>% 
+  group_by(Location) %>% 
+  summarise(across(c("depth"),  list(mean = mean, SD = sd))) %>%
+  kable(caption = "Summarized Data", format = "html") %>% 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, position = "left")
+```
+#### Histogram
+```{r histogram_depth, message=F, echo = F, fig.cap = "Histogram of female body depth(mm) across the four locations"}
+depth_hist <- ggplot(data = geo_subset, aes(x = depth)) +
+  geom_histogram(aes(fill = Location), 
+                 alpha = 0.5, 
+                 position = "identity") +
+  scale_fill_manual(values = c("darkorange","purple","cyan4", "indianred")) +
+  theme_minimal() +
+  labs(x = "Depth (mm)",
+       y = "Frequency",
+       title = "Female Body Depths")
+depth_hist
+```
+
+### {-}
+#### Testing assumptions
+```{r test-assumptions-depth}
+leveneTest(depth~Location, geo_subset)
+
+depthaov<-aov(depth~Location, geo_subset)
+depthresid<-resid(depthaov)
+shapiro.test(depthresid)
+
+par(mfrow=c(2,2))
+plot(depthaov)
+
+```
+All assumptions met, can proceed with one-way ANOVA. 
+
+#### Running one-way ANOVA between Depth and Location
+```{r run-anova-depth}
+summary(depthaov)
+
+#Post-hoc Analysis
+TukeyHSD(depthaov)
+
+```
+Significant ANOVA results. From the post-hoc analysis we can see significant differences between the depths of females from the Florida and Texas populations and between the two Texas populations.
+```{r posthoc-letters-depth, echo=F}
+multcompLetters4(depthaov, TukeyHSD(depthaov))
+
+par(mfrow=c(1,1))
+boxplot(depth~Location,data=geo_subset,ylab="Depth (mm)",xlab="Location",main="")
+```
+
+Because of the difference in depths across the locations for all of the subsequent analyses iridescent measurements will be adjusted for by depth (iridescence/depth) resulting in Depth-adjust iridescence measurements.
+
+#### Creating Figure
+
+### Number of female bands across Location {.tabset}
+
+#### Summary table
+```{r table-numbands, echo=FALSE}
+geo_subset %>% 
+  group_by(Location) %>% 
+  summarise(across(c("band_num"),  list(mean = mean, SD = sd))) %>%
+  kable(caption = "Summarized Data", format = "html") %>% 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, position = "left")
+```
+#### Histogram
+```{r histogram-numbands, message=F, echo = F, fig.cap = "Histogram of number of iridescent female bands across the four locations"}
+num_band_hist <- ggplot(data = geo_subset, aes(x = band_num)) +
+  geom_histogram(aes(fill = Location), 
+                 alpha = 0.5, 
+                 position = "identity") +
+  scale_fill_manual(values = c("darkorange","purple","cyan4", "indianred")) +
+  theme_minimal() +
+  labs(x = "Number of Bands",
+       y = "Frequency",
+       title = "Number of Bands") 
+num_band_hist
+```
+
+### {-}
+#### Testing assumptions
+```{r test-assumptions-numbands}
+leveneTest(band_num~Location, geo_subset)
+
+band_num_aov<-aov(band_num~Location, geo_subset)
+band_numresid<-resid(band_num_aov)
+shapiro.test(band_numresid)
+
+par(mfrow=c(2,2))
+plot(band_num_aov)
+
+```
+
+#### Running one-way ANOVA between Number of Bands and Location
+```{r run-anova-numbands}
+summary(band_num_aov)
+
+#Post-hoc Analysis
+TukeyHSD(band_num_aov)
+
+```
+Significant ANOVA results. From the post-hoc analysis we can see significant differences between the number of bands that females from the Florida population have versus females from the Texas populations.
+
+```{r posthoc-letters-numbands, echo=F}
+multcompLetters4(band_num_aov, TukeyHSD(band_num_aov))
+
+par(mfrow=c(1,1))
+boxplot(band_num~Location,data=geo_subset,ylab="Number of Bands",xlab="Location",main="")
+```
+
+
+### Depth-adjusted Mean Band Iridescence across Location {.tabset}
+
+#### Summary table
+```{r table_bandiri, echo=FALSE}
+geo_subset %>% 
+  group_by(Location) %>% 
+  summarise(across(c("DAI_hard"),  list(mean = mean, SD = sd))) %>%
+  kable(caption = "Summarized Data", format = "html") %>% 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, position = "left")
+```
+#### Histogram
+```{r histogram_bandiri, message=F, echo = F, fig.cap = "Histogram of Depth-adjusted mean band iridescence across the four locations"}
+meaniri_hist <- ggplot(data = geo_subset, aes(x = DAI_hard)) +
+  geom_histogram(aes(fill = Location), 
+                 alpha = 0.5, 
+                 position = "identity") +
+  scale_fill_manual(values = c("darkorange","purple","cyan4", "indianred")) +
+  theme_minimal() +
+  labs(x = "Band Iridescence (mm^2)",
+       y = "Frequency",
+       title = "Depth-adjusted Mean Band Iridescence")
+meaniri_hist
+```
+
+### {-}
+#### Testing assumptions
+```{r test-assumptions-meaniri}
+leveneTest(DAI_hard~Location, geo_subset)
+
+bandiri <- aov(DAI_hard~Location, geo_subset)
+bandiriresid <- resid(bandiri)
+shapiro.test(bandiriresid)
+
+par(mfrow=c(2,2))
+plot(bandiri)
+```
+All assumptions are not met, data fails normality as tested with shapiro.test. Cannot run a simple one-way ANOVA. Instead will use a GLMM with an underlying quasi-poisson distribution.
+
+#### Running the model between Depth-adjusted Mean Band Iridescence and Location
+```{r run-glmm-meaniri}
+bandiriPS <- glmmPQL(DAI_hard~Location,
+                     random=~1|Location,
+                     family=quasipoisson,
+                     data=geo_subset)
+Anova(bandiriPS, type="III")
+```
+Non-significant results, mean band iridescence does not differ between populations.
+
+```{r boxplot-meaniri, echo=F}
+par(mfrow=c(1,1))
+boxplot(DAI_hard~Location, data=geo_subset, ylab="Depth Adjusted Mean Band Iridescence", xlab="Location", main="")
+```
+
+
+### Depth-adjusted Overall Iridescence across Location {.tabset}
+
+#### Summary table
+```{r table_overalliri, echo=FALSE}
+geo_subset %>% 
+  group_by(Location) %>% 
+  summarise(across(c("DAIT_easy"),  list(mean = mean, SD = sd))) %>%
+  kable(caption = "Summarized Data", format = "html") %>% 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, position = "left")
+```
+#### Histogram
+```{r histogram_overalliri, message=F, echo = F, fig.cap = "Histogram of Depth-adjusted overall iridescence across the four locations"}
+overalliri_hist <- ggplot(data = geo_subset, aes(x = DAIT_easy)) +
+  geom_histogram(aes(fill = Location), 
+                 alpha = 0.5, 
+                 position = "identity") +
+  scale_fill_manual(values = c("darkorange","purple","cyan4", "indianred")) +
+  theme_minimal() +
+  labs(x = "Overall Iridescence (mm^2)",
+       y = "Frequency",
+       title = "Depth-adjusted Overall Iridescence")
+overalliri_hist
+```
+
+### {-}
+#### Testing assumptions
+```{r test-assumptions-overalliri}
+leveneTest(DAIT_easy~Location, geo_subset)
+
+overalliri <- aov(DAIT_easy~Location, geo_subset)
+overalliriresid <- resid(overalliri)
+shapiro.test(overalliriresid)
+
+par(mfrow=c(2,2))
+plot(overalliri)
+```
+All assumptions are met, can proceed with a one-way ANOVA
+
+#### Running the one-way ANOVA between Depth-adjusted Overall Iridescence and Location
+```{r run-anova-overalliri}
+summary(overalliri)
+
+##Post-hoc analysis
+TukeyHSD(overalliri)
+```
+Significant results from ANOVA. From the post-hoc analysis we can see signifcant differences between FL fort de soto population and the other three.
+
+```{r posthoc-letters-overalliri, echo=F}
+multcompLetters4(overalliri, TukeyHSD(overalliri))
+
+par(mfrow=c(1,1))
+boxplot(DAIT_easy~Location,
+        data=geo_subset,
+        ylab="Overall Iridescence", xlab="Location", main="")
+```
+
+### Torso Iridescence across Location {.tabset}
+
+#### Summary table
+```{r table_torsoiri, echo=FALSE}
+geo_subset %>% 
+  group_by(Location) %>% 
+  summarise(across(c("body_iri"),  list(mean = mean, SD = sd))) %>%
+  kable(caption = "Summarized Data", format = "html") %>% 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, position = "left")
+```
+#### Histogram
+```{r histogram_torsoiri, message=F, echo = F, fig.cap = "Histogram of Torso iridescence across the four locations"}
+torsoiri_hist <- ggplot(data = geo_subset, aes(x = body_iri)) +
+  geom_histogram(aes(fill = Location), 
+                 alpha = 0.5, 
+                 position = "identity") +
+  scale_fill_manual(values = c("darkorange","purple","cyan4", "indianred")) +
+  theme_minimal() +
+  labs(x = "Torso Iridescence (mm^2)",
+       y = "Frequency",
+       title = "Torso Iridescence")
+torsoiri_hist
+```
+
+### {-}
+#### Testing assumptions
+```{r test-assumptions-torsoiri}
+leveneTest(body_iri~Location, geo_subset)
+
+torsoiri_aov <- aov(body_iri~Location, geo_subset)
+torsoiriresid <- resid(torsoiri_aov)
+shapiro.test(torsoiriresid)
+
+par(mfrow=c(2,2))
+plot(torsoiri_aov)
+```
+All assumptions are not met, data fails normality as tested with shapiro.test. Cannot run a simple one-way ANOVA. Instead will use a GLMM with an underlying quasi-poisson distribution.
+
+#### Running the model between Torso Iridescence and Location
+```{r run-glmm-torsoiri}
+torsoiriPS <- glmmPQL(body_iri~Location,
+                    random=~1|Location,
+                    family=quasipoisson,
+                    data=geo_subset)
+Anova(torsoiriPS, type="III")
+```
+Significant results, but no corresponding post-hoc test for this model so we can't see which locations are sig.different from each other
+
+```{r boxplot-torsoiri, echo=F}
+par(mfrow=c(1,1))
+boxplot(body_iri~Location, data=geo_subset, ylab="Torso Iridescence", xlab="Location", main="")
+```
+
+### Investigating the Relationship between Band Area and Band Iridescence
