@@ -33,6 +33,7 @@ While working through the analysis of iridescence across different geographic lo
 
 For this study 24 sexually mature female pipefish were originally captured and photographed under 3 lighting conditions. Some females were removed due to too dark of a background colouration to confidently determine iridescence resulting in a total of `r length(unique(lighting_data$fish))` used in the analysis. Each individual was measured for mean band iridescence and overall iridescence (denoted as hard and easy respectively) resulting in a total of `r nrow(lighting_data[which(lighting_data$measurement == 'hard'),])` and `r` measurements for each method.
 
+### Exploring a two-way ANOVA
 ```{r two-way-anova}
 leveneTest(meaniri~measurement,lighting_data)
 leveneTest(meaniri~lighting,lighting_data)
@@ -44,6 +45,7 @@ interaction.plot(lighting_data$lighting,lighting_data$measurement,(lighting_data
 
 Type III was used to account for the unequal sample sizes across lighting condition. Because of no significant interaction term with this model, and the large differences between the ways mean iri and total iri are measured, separate one-way ANOVAs will be used for the analysis
 
+### Running the two One-Way ANOVAs
 ```{r subset-data}
 light_meaniri <- lighting_data[which(lighting_data$measurement == 'hard'),]
 light_totiri <- lighting_data[which(lighting_data$measurement == 'easy'),]
@@ -84,3 +86,5 @@ model_oneway_totiri <- aov(totaliri~lighting, light_totiri)
 summary(model_oneway_totiri)
 ```
 Both models resulted in non-significant results, meaning the lighting condition that a photo was taken in does not alter the resulting measurement of iridescence. This does not differ no matter if you are looking at band iridescence or overall iridescence.
+
+### Creating the figures
