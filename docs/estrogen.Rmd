@@ -1,0 +1,126 @@
+---
+title: "Development of Iridescence due to Exposure to Estrogen"
+author: "Coley Tosto"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r knitsetup, include=FALSE}
+knitr::opts_knit$set(root.dir='../',fig_path="../figs/")
+```
+
+
+```{r chunksetup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,out.extra='',fig.pos="H",
+                      fig.path = "../figs/",
+                      dpi = 300,dev='png')
+```
+
+```{r library, message=FALSE, warning=FALSE}
+library(car)
+library(knitr)
+library(kableExtra)
+library(tidyverse)
+library(ggplot2)
+library(magick)
+library(cowplot)
+```
+
+```{r read-data}
+estrogen_data <- read.csv("processed_data/estrogen.csv")
+estrogen_data$Exposure <- as.factor(estrogen_data$Exposure)
+
+mvfiri <- read.csv("processed_data/mvfiri.csv")
+```
+
+For this analysis we are trying to see if there is a significant increase in the amount of iridescence on male pipefish after exposure to synthetic estrogen.
+
+### Data Exploration {.tabset}
+#### Summary Table
+```{r table, echo=FALSE}
+estrogen_data %>% 
+  group_by(Exposure) %>% 
+  summarise(across(c("change_iri"),  list(mean = mean, SD = sd))) %>%
+  kable(caption = "Summarized Data", format = "html") %>% 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, position = "left")
+```
+
+#### Histogram
+```{r histogram, message=F, echo = F, fig.cap = "Histogram of change in iridescence in males exposed vs unexposed to estrogen after 18 days"}
+est_hist <- ggplot(data = estrogen_data, aes(x = change_iri)) +
+  geom_histogram(aes(fill = Exposure), 
+                 alpha = 0.5, 
+                 position = "identity") +
+  scale_fill_manual(values = c("darkorange","purple")) +
+  theme_minimal() +
+  labs(x = "Change in Iridescence",
+       y = "Frequency",
+       title = "Change in Male Iridescence Levels")
+est_hist
+```
+### Analysis
+```{r analysis}
+leveneTest(change_iri~Exposure, estrogen_data)
+
+wilcox.test(change_iri~Exposure, data = estrogen_data)
+```
+Signifcant different between how much iridescence was developed over the 18 day period between males that were exposed to synthetic estrogen, and those that were not exposed. Now we want to see how the level of iridescence found on males that were exposed to estrogen compared to iridescence present on females from the same location.
+
+```{r mvfiri}
+wilcox.test(Iridescence~Sex, data = mvfiri)
+boxplot(Iridescence~Sex, data = mvfiri,
+        ylab = "Iridescence", xlab = "Sex")
+```
+There is a significatn difference between the two as females do possess more iridescence. However, many of the iridescence vales for the exposed males (`r min((mvfiri[which(mvfiri$Sex == 'Male'),])$Iridescence)` - `r max((mvfiri[which(mvfiri$Sex == 'Male'),])$Iridescence)`) fall within the range of iridescence (`r min((mvfiri[which(mvfiri$Sex == 'Female'),])$Iridescence)` - `r max((mvfiri[which(mvfiri$Sex == 'Female'),])$Iridescence)`) found on wild caught females.
+
+### Create Figure
+```{r fig6, echo=F,fig.height=8, warning=F}
+##Creating dataframe compatible with geom_bar
+Control<-estrogen_data[which(estrogen_data$Exposure=='Control'),]
+Estrogen<-estrogen_data[which(estrogen_data$Exposure=='Estrogen'),]
+est <- data.frame(Exposure=c("Control","Estrogen"),
+                  Changeiniri=c(mean(Control$change_iri),mean(Estrogen$change_iri)),
+                  Se=c((sd(Control$change_iri)/(sqrt(5))),(sd(Estrogen$change_iri)/(sqrt(8)))))
+
+##Making the plot
+plot <- ggplot(est, aes(x=Exposure, y=Changeiniri)) + 
+  geom_bar(stat = "identity",
+           width=0.4,
+           color="black",
+           size=0.7,
+           fill=c("gray77","gray37")) + 
+  theme_minimal() + 
+  labs(x="Exposure Level", y="Change in Iridescence") + 
+  geom_errorbar(aes(x=Exposure, ymin=Changeiniri-Se, ymax=Changeiniri+Se),
+                width=0.1,
+                size=0.7) + 
+  theme(text=element_text(size=12, family="sans", color="black")) +
+  geom_hline(yintercept=0, linetype='solid', show.legend = TRUE)
+
+##Reading in the images I want next to my plot
+male_before <- ggdraw() +
+               draw_image("malepipe_before.png")
+male_after <- ggdraw() +
+              draw_image("malepipe_after.png")
+
+##Putting it all together
+pipefish_images <- plot_grid(male_before, male_after,
+                     ncol = 1,
+                     byrow = TRUE,
+                     labels = c('B', 'C'),
+                     label_fontfamily = 'sans',
+                     label_fontface = 'bold',
+                     label_size = 18,
+                     rel_widths = c(1, 1))
+barplot <- plot_grid(plot,
+                     ncol = 1,
+                     labels = c('A'),
+                     label_fontfamily = 'sans',
+                     label_fontface = 'bold',
+                     label_size = 18)
+plot_grid(barplot, pipefish_images, NULL, NULL,
+          ncol = 2,
+          byrow = TRUE,
+          scale = c(1, 0.9))
+
+```
