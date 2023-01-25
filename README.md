@@ -22,7 +22,7 @@ All Rmarkdown documents are located in the folder called docs/. They do the foll
 
 - `geo_variation.Rmd`: Read in the datasets and subset for equal sample size, run a series of models looking at variation of traits across location, and performs the correlation testing between band area and band iridescence. This file also includes the code to create Fig. 4, Fig. 5, and Supplemental Fig. 2 in the manuscript.
 
--`estrogen.Rmd`: Read in the datasets, perform some exploratory analysis and run tests surrouding the development of iridescence on males exposed to estrogen compared to both control males and females. It also includes the code to create Fig. 6 in the manuscript.
+- `estrogen.Rmd`: Read in the datasets, perform some exploratory analysis and run tests surrouding the development of iridescence on males exposed to estrogen compared to both control males and females. It also includes the code to create Fig. 6 in the manuscript.
 
 ## Author Information
 All of this code was written by Coley Tosto as a part of her undergraduate work at the University of Tampa
