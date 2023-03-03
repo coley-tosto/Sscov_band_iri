@@ -88,6 +88,89 @@ geo_subset %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, position = "left") %>%
   footnote(general = "Summarized here are the means across location for each of the variables")
 ```
+### Length across Location {.tabset}
+
+#### Summary table
+```{r table_length, echo=FALSE}
+geo_subset %>%
+  group_by(Location) %>%
+  summarise(across(c("length"), list(mean = mean, SD = sd))) %>%
+  kable(caption = "Summarized Data", format = 'html') %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, position = "left")
+```
+#### Histogram
+```{r histogram_length, message=FALSE, echo=FALSE, fig.cap="Histogram of female body length (mm) across the four locations"}
+length_hist <- ggplot(data = geo_subset, aes(x = length)) +
+  geom_histogram(aes(fill = Location),
+                 alpha = 0.5,
+                 position = 'identity') +
+  scale_fill_manual(values = c("darkorange", "purple", "cyan4", "indianred")) +
+  theme_minimal() +
+  labs(x = "Length (mm)",
+       y = "Number of Pipefish",
+       title = "Length of female pipefish")
+
+length_hist
+
+```
+### {-}
+#### Testing assumptions
+```{r test-assumptions-length}
+leveneTest(length~Location, geo_subset)
+
+lengthaov<-aov(geo_subset$length~geo_subset$Location)
+lengthresid<-resid(lengthaov)
+shapiro.test(lengthresid)
+
+par(mfrow=c(2,2))
+plot(lengthaov)
+
+```
+
+All assumptions met, can proceed with one-way ANOVA. 
+
+#### Running one-way ANOVA between Length and Location
+```{r run-anova-length}
+summary(lengthaov)
+
+#Post-hoc Analysis
+tukey_length <- TukeyHSD(x=lengthaov, 'geo_subset$Location', conf.level = 0.95)
+tukey_length
+```
+Significant ANOVA results. From the post-hoc analysis we can see significant differences between the lengths of females from the Florida and Texas populations.
+
+```{r posthoc-letters-length, echo=F}
+multcompLetters4(lengthaov, TukeyHSD(lengthaov))
+
+par(mfrow=c(1,1))
+boxplot(length~Location,data=geo_subset,ylab="Length (mm)",xlab="Location",main="")
+```
+
+```{r fig-length, echo=F}
+#Generate labels using function
+labels_length <- generate_label_df(tukey_length, "geo_subset$Location")
+
+#Rename columns for merging
+names(labels_length) <- c('Letters', 'Location')
+
+#Obtain letter position for y axis using means
+yvalue_length <- aggregate(length~Location, data=geo_subset, mean)
+
+#Merge dataframes
+final_length <- merge(labels_length, yvalue_length)
+
+length <- ggplot(geo_subset, aes(x = Location, y = length)) +
+       geom_boxplot(fill = 'grey23', alpha = 0.3) +
+       xlab("Location") +
+       ylab("Length (mm)") +
+       geom_text(data = final_length, aes(x = Location, y = length, label = Letters),
+                 vjust = -6.5, hjust = 0.4) +
+       theme_minimal() +
+       theme(text = element_text(size = 12, family = 'sans', color = "black"))
+
+```
+
+
 ### Depth across Location {.tabset}
 
 #### Summary table
@@ -251,14 +334,14 @@ numbands <- ggplot(geo_subset, aes(x = Location, y = band_num)) +
 ```
 
 ```{r fig-combined-S2, echo=F}
-top_rowFS2 <- plot_grid(depth, numbands,
-                     ncol = 2,
-                     labels = c('A', 'B'),
+top_rowFS2 <- plot_grid(length, depth, numbands,
+                     ncol = 3,
+                     labels = c('A', 'B', 'C'),
                      label_fontfamily = 'sans',
                      label_fontface = 'bold',
                      label_size = 18,
                      align = 'h',
-                     rel_widths = c(1.10, 1.10))
+                     rel_widths = c(1.10, 1.10, 1.10))
 
 plot_grid(top_rowFS2)
 ```
