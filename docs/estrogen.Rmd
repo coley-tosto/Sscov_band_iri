@@ -35,6 +35,92 @@ mvfiri <- read.csv("processed_data/mvfiri.csv")
 
 For this analysis we are trying to see if there is a significant increase in the amount of iridescence on male pipefish after exposure to synthetic estrogen.
 
+### Exploring Morphemetrics {.tabset}
+Here we are testing to ensure that the sizes of the males used in the control versus the estrogen-exposed groups did not significantly differ in size. A difference in size may skew the way that males are affected by synthetic estrogen.
+
+#### Summary Table
+```{r table_morph, echo=FALSE}
+estrogen_data %>% 
+  group_by(Exposure) %>% 
+  summarise(across(c("length", "depth_before", "depth_after", "SVL"),  list(mean = mean, SD = sd))) %>%
+  kable(caption = "Summarized data of morphometrics including the mean and SD for each variable", format = "html",
+        col.names = c("Exposure", "Length", "SD", "Depth Before", "SD", "Depth After", "SD", "SVL", "SD")) %>% 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, position = "left")
+```
+#### Length (mm)
+```{r histogram_length, message=F, echo = F, fig.cap = "Histogram of the lengths of the male pipefish in mm"}
+ggplot(data = estrogen_data, aes(x = length)) +
+  geom_histogram(aes(fill = Exposure), 
+                 alpha = 0.5, 
+                 position = "identity") +
+  scale_fill_manual(values = c("darkorange","purple")) +
+  theme_minimal() +
+  labs(x = "Length (mm)",
+       y = "# of pipefish",
+       title = "Length of Male Pipefish")
+
+```
+#### Depth before Exposure (mm)
+```{r histogram_dbefore, message=F, echo = F, fig.cap = "Histogram of the depths of the pipefish prior to the experiment starting"}
+ggplot(data = estrogen_data, aes(x = depth_before)) +
+  geom_histogram(aes(fill = Exposure), 
+                 alpha = 0.5, 
+                 position = "identity") +
+  scale_fill_manual(values = c("darkorange","purple")) +
+  theme_minimal() +
+  labs(x = "Depth (mm)",
+       y = "# of pipefish",
+       title = "Depth of Male Pipefish DAY 1")
+
+```
+#### Depth after Exposure (mm)
+```{r histogram_dafter, message=F, echo = F, fig.cap = "Histogram of the depths of the pipefish at the end of the 18 days"}
+ggplot(data = estrogen_data, aes(x = depth_after)) +
+  geom_histogram(aes(fill = Exposure), 
+                 alpha = 0.5, 
+                 position = "identity") +
+  scale_fill_manual(values = c("darkorange","purple")) +
+  theme_minimal() +
+  labs(x = "Depth (mm)",
+       y = "# of pipefish",
+       title = "Depth of Male Pipefish DAY 18")
+
+```
+#### Snout-vent Length (mm)
+```{r histogram_SVL, message=F, echo = F, fig.cap = "Histogram of the snout-vent length of the male piepfish"}
+ggplot(data = estrogen_data, aes(x = SVL)) +
+  geom_histogram(aes(fill = Exposure), 
+                 alpha = 0.5, 
+                 position = "identity") +
+  scale_fill_manual(values = c("darkorange","purple")) +
+  theme_minimal() +
+  labs(x = "Snout-vent Length (mm)",
+       y = "# of pipefish",
+       title = "SVL of Male Pipefish")
+
+```
+### {-}
+#### Analysis
+```{r analysis_morph}
+##Length
+leveneTest(length~Exposure, estrogen_data)
+t.test(length~Exposure, data = estrogen_data) #No sig. difference
+
+##Depth day 1
+leveneTest(depth_before~Exposure, estrogen_data)
+t.test(depth_before~Exposure, data = estrogen_data) #No sig. difference
+
+##Depth day 18
+leveneTest(depth_after~Exposure, estrogen_data)
+t.test(depth_after~Exposure, estrogen_data) #Sig. difference
+
+##SVL
+leveneTest(SVL~Exposure, estrogen_data)
+t.test(SVL~Exposure, estrogen_data) #Sig. difference
+```
+No significant difference in the sizes of the males (including length, depth, and SVL) in the control group versus the exposure group when they entered the experiment. However, after the 18-day period males that were exposed to estrogen became significantly deeper than males in the control group. 
+
+
 ### Data Exploration {.tabset}
 #### Summary Table
 ```{r table, echo=FALSE}
