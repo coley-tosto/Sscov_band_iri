@@ -171,6 +171,89 @@ length <- ggplot(geo_subset, aes(x = Location, y = length)) +
 ```
 
 
+### Snout-vent Length across Location {.tabset}
+
+#### Summary table
+```{r table_SVL, echo=FALSE}
+geo_subset %>%
+  group_by(Location) %>%
+  summarise(across(c("SVL"), list(mean = mean, SD = sd))) %>%
+  kable(caption = "Summarized Data", format = 'html') %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, position = "left")
+```
+#### Histogram
+```{r histogram_svl, message=FALSE, echo=FALSE, fig.cap="Histogram of female snout-vent length (mm) across the four locations"}
+SVL_hist <- ggplot(data = geo_subset, aes(x = SVL)) +
+  geom_histogram(aes(fill = Location),
+                 alpha = 0.5,
+                 position = 'identity') +
+  scale_fill_manual(values = c("darkorange", "purple", "cyan4", "indianred")) +
+  theme_minimal() +
+  labs(x = "Snout-vent Length (mm)",
+       y = "Number of Pipefish",
+       title = "SVL of female pipefish")
+
+SVL_hist
+
+```
+### {-}
+#### Testing assumptions
+```{r test-assumptions-svl}
+leveneTest(SVL~Location, geo_subset)
+
+SVLaov<-aov(geo_subset$SVL~geo_subset$Location)
+SVLresid<-resid(SVLaov)
+shapiro.test(SVLresid)
+
+par(mfrow=c(2,2))
+plot(SVLaov)
+
+```
+
+All assumptions met, can proceed with one-way ANOVA. 
+
+#### Running one-way ANOVA between Snout-vent Length and Location
+```{r run-anova-svl}
+summary(SVLaov)
+
+#Post-hoc Analysis
+tukey_SVL <- TukeyHSD(x=SVLaov, 'geo_subset$Location', conf.level = 0.95)
+tukey_SVL
+```
+Significant ANOVA results. From the post-hoc analysis we can see significant differences between the lengths of females from the Florida and Texas populations.
+
+```{r posthoc-letters-svl, echo=F}
+multcompLetters4(SVLaov, TukeyHSD(SVLaov))
+
+par(mfrow=c(1,1))
+boxplot(SVL~Location,data=geo_subset,ylab="Snout-vent Length (mm)",xlab="Location",main="")
+```
+
+```{r fig-svl, echo=F}
+#Generate labels using function
+labels_SVL <- generate_label_df(tukey_SVL, "geo_subset$Location")
+
+#Rename columns for merging
+names(labels_SVL) <- c('Letters', 'Location')
+
+#Obtain letter position for y axis using means
+yvalue_SVL <- aggregate(SVL~Location, data=geo_subset, mean)
+
+#Merge dataframes
+final_SVL <- merge(labels_SVL, yvalue_SVL)
+
+SVL <- ggplot(geo_subset, aes(x = Location, y = SVL)) +
+       geom_boxplot(fill = 'grey23', alpha = 0.3) +
+       xlab("Location") +
+       ylab("Snout-vent Length (mm)") +
+       geom_text(data = final_SVL, aes(x = Location, y = SVL, label = Letters),
+                 vjust = -6.5, hjust = 0.4) +
+       theme_minimal() +
+       theme(text = element_text(size = 12, family = 'sans', color = "black"))
+
+```
+
+
 ### Depth across Location {.tabset}
 
 #### Summary table
@@ -251,6 +334,17 @@ depth <- ggplot(geo_subset, aes(x = Location, y = depth)) +
        theme(text = element_text(size = 12, family = 'sans', color = "black"))
 
 ```
+
+### Investigating relationship between Depth and Length
+Across the four locations Depth and Length show the same pattern. Florida females are deeper and longer than the Texas females. Here I am testing to see what the correlation is between depth and length.
+
+```{r cor}
+cor.test(geo_subset$length, geo_subset$depth) ##0.87
+
+plot(geo_subset$length, geo_subset$depth, xlab = "Length (mm)", ylab = "Depth (mm)", pch = 16)
+abline(lm(depth~length,data=geo_subset),lty=3, col="cyan4",lwd=3)
+```
+Due to the strong correlation between length and depth I will not be including both in the model as I am trying to avoid autocorrelation between my predictor variables. Depth will have a larger impact on the amount of iridescence present as the majority of the iridescence is present on the torso. Therefore, have a deeper torso means there is more area for iridescence to be present one. Going forward this is why a depth-adjusted measurment of iridescence is used. 
 
 ### Number of female bands across Location {.tabset}
 
@@ -333,15 +427,16 @@ numbands <- ggplot(geo_subset, aes(x = Location, y = band_num)) +
 
 ```
 
-```{r fig-combined-S2, echo=F}
-top_rowFS2 <- plot_grid(length, depth, numbands,
-                     ncol = 3,
-                     labels = c('A', 'B', 'C'),
+```{r fig-combined-S2, echo=F, fig.height= 10}
+top_rowFS2 <- plot_grid(length, SVL, depth, numbands,
+                     ncol = 2,
+                     nrow = 2,
+                     labels = c('A', 'B', 'C', 'D'),
                      label_fontfamily = 'sans',
                      label_fontface = 'bold',
                      label_size = 18,
                      align = 'h',
-                     rel_widths = c(1.10, 1.10, 1.10))
+                     rel_widths = c(1.10, 1.10, 1.10, 1.10))
 
 plot_grid(top_rowFS2)
 ```
