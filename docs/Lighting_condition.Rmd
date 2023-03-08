@@ -19,6 +19,7 @@ knitr::opts_chunk$set(echo = TRUE,out.extra='',fig.pos="H",
 ```{r library, message=FALSE, warning=FALSE}
 library(ggplot2)
 library(car)
+library(cowplot)
 ```
 
 ```{r read-data}
@@ -27,6 +28,11 @@ lighting_data <- read.csv("processed_data/lightingcondition.csv")
 ##ensuring our factors are factors
 lighting_data$measurement <- factor(lighting_data$measurement)
 lighting_data$lighting <- factor(lighting_data$lighting)
+
+##ata used to create supplemental figure 1
+lighting_rep <- read.csv("processed_data/nestedaov.csv")
+lighting_rep$measurement <- as.factor(lighting_rep$measurement)
+lighting_rep$lighting <- as.factor(lighting_rep$lighting)
 ```
 
 While working through the analysis of iridescence across different geographic locations, it was noted that due to the nature of the original study (ADD CITATION), photos of the pipefish were taken under various lighting conditions (including cloudy days, sunny days, etc.). To increase confidence in the resulting measurements, this study was developed to assess the reliability and repeatability of the IDIA.
@@ -88,3 +94,42 @@ summary(model_oneway_totiri)
 Both models resulted in non-significant results, meaning the lighting condition that a photo was taken in does not alter the resulting measurement of iridescence. This does not differ no matter if you are looking at band iridescence or overall iridescence.
 
 ### Creating the figures
+#### Supplemental Figure 1
+```{r fig_S1, warning=FALSE, fig.height=8.5}
+##Subsetting the data into mean iridescence measurements and overall iridescence
+hard_mean <- subset(lighting_rep, measurement == "Hard")
+easy_overall <- subset(lighting_rep, measurement == "Easy")
+
+##Creating the plot for Mean Band Iridescence
+MBI <- ggplot(hard_mean, 
+              aes(x=fish, y=meaniri, fill= factor(lighting, levels = c("9 Lumens", "13 Lumens", "21 Lumens")))) +   
+  geom_boxplot(width = 0.75, position = position_dodge(0.75)) + 
+  scale_fill_manual(values = c("gray77","gray57","gray37")) +
+  labs(fill = "Lighting Condition") +
+  xlab("Fish ID") + 
+  ylab(bquote("Mean Band Iridescence (mm" ^ "  2"*")")) +
+  theme_minimal(base_size = 20)
+
+##Creating the plot for Overall Iridescence
+OI <- ggplot(easy_overall, 
+              aes(x=fish, y=totaliri, fill= factor(lighting, levels = c("9 Lumens", "13 Lumens", "21 Lumens")))) +   
+  geom_boxplot(width = 0.75, position = position_dodge(0.75)) + 
+  scale_fill_manual(values = c("gray77","gray57","gray37")) +
+  labs(fill = "Lighting Condition") +
+  xlab("Fish ID") + 
+  ylab(bquote("Overall Iridescence (mm" ^ "  2"*")")) +
+  theme_minimal(base_size = 20)
+
+##Combining the figures to create Fig S1
+top_rowFS1 <- plot_grid(MBI, OI,
+                     ncol = 1,
+                     nrow = 2,
+                     labels = c('A', 'B'),
+                     label_fontfamily = 'sans',
+                     label_fontface = 'bold',
+                     label_size = 18,
+                     align = 'h',
+                     rel_widths = c(1.10, 1.10))
+
+plot_grid(top_rowFS1)
+```
