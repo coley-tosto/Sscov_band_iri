@@ -116,7 +116,7 @@ t.test(depth_after~Exposure, estrogen_data) #Sig. difference
 
 ##SVL
 leveneTest(SVL~Exposure, estrogen_data)
-t.test(SVL~Exposure, estrogen_data) #Sig. difference
+t.test(SVL~Exposure, estrogen_data) #No sig. difference
 ```
 No significant difference in the sizes of the males (including length, depth, and SVL) in the control group versus the exposure group when they entered the experiment. However, after the 18-day period males that were exposed to estrogen became significantly deeper than males in the control group. 
 
